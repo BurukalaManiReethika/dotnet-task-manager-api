@@ -11,5 +11,7 @@ namespace dotnet_task_manager_api.Data
         }
 
         public DbSet<TaskItem> Tasks => Set<TaskItem>();
+
+        public DbSet<User> Users => Set<User>();
     }
 }

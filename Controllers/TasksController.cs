@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using dotnet_task_manager_api.Data;
@@ -115,6 +116,7 @@ namespace dotnet_task_manager_api.Controllers
             return task;
         }
 
+        [Authorize]
         [HttpPost]
         public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
         {
@@ -124,6 +126,7 @@ namespace dotnet_task_manager_api.Controllers
             return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
         }
 
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(int id, TaskItem task)
         {
@@ -137,6 +140,7 @@ namespace dotnet_task_manager_api.Controllers
             return NoContent();
         }
 
+        [Authorize]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(int id)
         {
