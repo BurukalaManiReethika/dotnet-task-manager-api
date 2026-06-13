@@ -31,6 +31,19 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+
+    db.Database.OpenConnection();
+
+    using var command = db.Database.GetDbConnection().CreateCommand();
+    command.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Tasks') WHERE name = 'CreatedAt';";
+
+    var createdAtColumnExists = Convert.ToInt32(command.ExecuteScalar()) > 0;
+
+    if (!createdAtColumnExists)
+    {
+        db.Database.ExecuteSqlRaw(
+            "ALTER TABLE Tasks ADD COLUMN CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;");
+    }
 }
 
 app.Run();

@@ -16,10 +16,36 @@ namespace dotnet_task_manager_api.Controllers
             _context = context;
         }
 
+        /// <summary>
+        /// Gets all tasks, optionally sorted by creation date.
+        /// </summary>
+        /// <param name="sort">Use <c>newest</c> to return newest tasks first or <c>oldest</c> to return oldest tasks first.</param>
+        /// <returns>The list of tasks.</returns>
+        /// <response code="200">Returns all tasks.</response>
+        /// <response code="400">Returned when the sort value is not <c>newest</c> or <c>oldest</c>.</response>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
+        [ProducesResponseType(typeof(IEnumerable<TaskItem>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks([FromQuery] string? sort)
         {
-            return await _context.Tasks.ToListAsync();
+            var query = _context.Tasks.AsQueryable();
+
+            switch (sort?.Trim().ToLowerInvariant())
+            {
+                case null:
+                case "":
+                    break;
+                case "newest":
+                    query = query.OrderByDescending(task => task.CreatedAt);
+                    break;
+                case "oldest":
+                    query = query.OrderBy(task => task.CreatedAt);
+                    break;
+                default:
+                    return BadRequest("Sort must be either 'newest' or 'oldest'.");
+            }
+
+            return await query.ToListAsync();
         }
 
         /// <summary>
@@ -71,7 +97,14 @@ namespace dotnet_task_manager_api.Controllers
             if (id != task.Id)
                 return BadRequest();
 
-            _context.Entry(task).State = EntityState.Modified;
+            var existingTask = await _context.Tasks.FindAsync(id);
+
+            if (existingTask == null)
+                return NotFound();
+
+            existingTask.Title = task.Title;
+            existingTask.Description = task.Description;
+            existingTask.IsCompleted = task.IsCompleted;
 
             await _context.SaveChangesAsync();
 

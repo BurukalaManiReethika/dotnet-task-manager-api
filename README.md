@@ -37,6 +37,8 @@ https://github.com/BurukalaManiReethika/dotnet-task-manager-api
 
 ✅ Get All Tasks
 
+✅ Sort Tasks by Creation Date
+
 ✅ Get Task By ID
 
 ✅ Update Existing Tasks
@@ -75,6 +77,8 @@ https://github.com/BurukalaManiReethika/dotnet-task-manager-api
 | Method | Endpoint | Description |
 |----------|----------|----------|
 | GET | `/api/tasks` | Get all tasks |
+| GET | `/api/tasks?sort=newest` | Get newest tasks first |
+| GET | `/api/tasks?sort=oldest` | Get oldest tasks first |
 | GET | `/api/tasks/{id}` | Get task by ID |
 | POST | `/api/tasks` | Create a task |
 | PUT | `/api/tasks/{id}` | Update task |
@@ -103,8 +107,20 @@ https://github.com/BurukalaManiReethika/dotnet-task-manager-api
   "id": 1,
   "title": "Deploy ASP.NET Core API",
   "description": "Hosted on Render",
-  "isCompleted": false
+  "isCompleted": false,
+  "createdAt": "2026-06-13T12:00:00Z"
 }
+```
+
+---
+
+## 🔃 Sorting Tasks
+
+Use the optional `sort` query parameter on `GET /api/tasks`:
+
+```text
+GET /api/tasks?sort=newest
+GET /api/tasks?sort=oldest
 ```
 
 ---
