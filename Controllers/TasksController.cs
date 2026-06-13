@@ -1,155 +1,105 @@
+using dotnet_task_manager_api.DTOs;
+using dotnet_task_manager_api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using dotnet_task_manager_api.Data;
-using dotnet_task_manager_api.Models;
 
-namespace dotnet_task_manager_api.Controllers
+namespace dotnet_task_manager_api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Produces("application/json")]
+public sealed class TasksController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class TasksController : ControllerBase
+    private readonly ITaskService _taskService;
+    private readonly ILogger<TasksController> _logger;
+
+    public TasksController(ITaskService taskService, ILogger<TasksController> logger)
     {
-        private readonly AppDbContext _context;
+        _taskService = taskService;
+        _logger = logger;
+    }
 
-        public TasksController(AppDbContext context)
-        {
-            _context = context;
-        }
+    /// <summary>
+    /// Gets a paginated list of tasks, optionally filtered by a search term.
+    /// </summary>
+    /// <param name="query">Pagination and search parameters. Page size is limited to 100.</param>
+    /// <param name="cancellationToken">Request cancellation token.</param>
+    /// <returns>A paginated list of tasks.</returns>
+    /// <response code="200">Returns the requested page of tasks.</response>
+    /// <response code="400">Returned when query parameters fail validation.</response>
+    [HttpGet]
+    [ProducesResponseType(typeof(PaginatedResponse<TaskDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PaginatedResponse<TaskDto>>> GetTasks([FromQuery] TaskQueryParameters query, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Task list requested with page {PageNumber}, size {PageSize}, search {Search}", query.PageNumber, query.PageSize, query.Search);
+        return Ok(await _taskService.GetTasksAsync(query, cancellationToken));
+    }
 
-        /// <summary>
-        /// Gets tasks using pagination.
-        /// </summary>
-        /// <param name="pageNumber">The page number to retrieve. Defaults to 1.</param>
-        /// <param name="pageSize">The number of tasks per page. Defaults to 10.</param>
-        /// <returns>A paginated list of tasks with paging metadata.</returns>
-        /// <remarks>
-        /// Example request:
-        ///
-        ///     GET /api/tasks?pageNumber=2&amp;pageSize=5
-        ///
-        /// Example response:
-        ///
-        ///     {
-        ///       "pageNumber": 2,
-        ///       "pageSize": 5,
-        ///       "totalCount": 23,
-        ///       "totalPages": 5,
-        ///       "items": [
-        ///         {
-        ///           "id": 6,
-        ///           "title": "Review pull request",
-        ///           "description": "Review the task pagination changes",
-        ///           "isCompleted": false
-        ///         }
-        ///       ]
-        ///     }
-        ///
-        /// </remarks>
-        /// <response code="200">Returns the requested page of tasks.</response>
-        /// <response code="400">Returned when pageNumber or pageSize is less than 1.</response>
-        [HttpGet]
-        [ProducesResponseType(typeof(PaginatedTasksResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<PaginatedTasksResponse>> GetTasks(
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10)
-        {
-            if (pageNumber < 1)
-                return BadRequest("pageNumber must be greater than or equal to 1.");
+    /// <summary>
+    /// Gets a task by id.
+    /// </summary>
+    /// <param name="id">The task id.</param>
+    /// <param name="cancellationToken">Request cancellation token.</param>
+    /// <returns>The requested task.</returns>
+    /// <response code="200">Returns the task.</response>
+    /// <response code="404">Returned when the task does not exist.</response>
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(TaskDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TaskDto>> GetTask(int id, CancellationToken cancellationToken)
+    {
+        return Ok(await _taskService.GetTaskAsync(id, cancellationToken));
+    }
 
-            if (pageSize < 1)
-                return BadRequest("pageSize must be greater than or equal to 1.");
+    /// <summary>
+    /// Creates a task.
+    /// </summary>
+    /// <param name="request">The task creation payload.</param>
+    /// <param name="cancellationToken">Request cancellation token.</param>
+    /// <returns>The created task.</returns>
+    /// <response code="201">Returns the created task.</response>
+    /// <response code="400">Returned when the request body fails validation.</response>
+    [HttpPost]
+    [ProducesResponseType(typeof(TaskDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<TaskDto>> CreateTask([FromBody] CreateTaskDto request, CancellationToken cancellationToken)
+    {
+        var task = await _taskService.CreateTaskAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
+    }
 
-            var totalCount = await _context.Tasks.CountAsync();
-            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-            var offset = ((long)pageNumber - 1) * pageSize;
-            var items = offset > int.MaxValue
-                ? []
-                : await _context.Tasks
-                    .OrderBy(task => task.Id)
-                    .Skip((int)offset)
-                    .Take(pageSize)
-                    .ToListAsync();
+    /// <summary>
+    /// Updates a task.
+    /// </summary>
+    /// <param name="id">The task id.</param>
+    /// <param name="request">The replacement task values.</param>
+    /// <param name="cancellationToken">Request cancellation token.</param>
+    /// <response code="204">The task was updated.</response>
+    /// <response code="400">Returned when the request body fails validation.</response>
+    /// <response code="404">Returned when the task does not exist.</response>
+    [HttpPut("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateTask(int id, [FromBody] UpdateTaskDto request, CancellationToken cancellationToken)
+    {
+        await _taskService.UpdateTaskAsync(id, request, cancellationToken);
+        return NoContent();
+    }
 
-            return new PaginatedTasksResponse
-            {
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = totalPages,
-                Items = items
-            };
-        }
-
-        /// <summary>
-        /// Searches tasks by keyword in the title or description.
-        /// </summary>
-        /// <param name="keyword">The case-insensitive keyword to search for.</param>
-        /// <returns>Tasks whose title or description contains the keyword.</returns>
-        /// <response code="200">Returns the matching tasks.</response>
-        /// <response code="400">Returned when the keyword is missing or blank.</response>
-        [HttpGet("search")]
-        [ProducesResponseType(typeof(IEnumerable<TaskItem>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<IEnumerable<TaskItem>>> SearchTasks([FromQuery] string keyword)
-        {
-            if (string.IsNullOrWhiteSpace(keyword))
-                return BadRequest("A non-empty keyword query parameter is required.");
-
-            var normalizedKeyword = keyword.Trim().ToLower();
-
-            return await _context.Tasks
-                .Where(task => task.Title.ToLower().Contains(normalizedKeyword)
-                    || task.Description.ToLower().Contains(normalizedKeyword))
-                .ToListAsync();
-        }
-
-        [HttpGet("{id}")]
-        public async Task<ActionResult<TaskItem>> GetTask(int id)
-        {
-            var task = await _context.Tasks.FindAsync(id);
-
-            if (task == null)
-                return NotFound();
-
-            return task;
-        }
-
-        [HttpPost]
-        public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
-        {
-            _context.Tasks.Add(task);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
-        }
-
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateTask(int id, TaskItem task)
-        {
-            if (id != task.Id)
-                return BadRequest();
-
-            _context.Entry(task).State = EntityState.Modified;
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteTask(int id)
-        {
-            var task = await _context.Tasks.FindAsync(id);
-
-            if (task == null)
-                return NotFound();
-
-            _context.Tasks.Remove(task);
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
+    /// <summary>
+    /// Deletes a task.
+    /// </summary>
+    /// <param name="id">The task id.</param>
+    /// <param name="cancellationToken">Request cancellation token.</param>
+    /// <response code="204">The task was deleted.</response>
+    /// <response code="404">Returned when the task does not exist.</response>
+    [HttpDelete("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteTask(int id, CancellationToken cancellationToken)
+    {
+        await _taskService.DeleteTaskAsync(id, cancellationToken);
+        return NoContent();
     }
 }

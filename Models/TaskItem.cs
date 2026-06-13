@@ -1,13 +1,17 @@
-namespace dotnet_task_manager_api.Models
+using System.ComponentModel.DataAnnotations;
+
+namespace dotnet_task_manager_api.Models;
+
+public class TaskItem
 {
-    public class TaskItem
-    {
-        public int Id { get; set; }
+    public int Id { get; set; }
 
-        public string Title { get; set; } = "";
+    [Required]
+    [MaxLength(100)]
+    public string Title { get; set; } = string.Empty;
 
-        public string Description { get; set; } = "";
+    [MaxLength(1000)]
+    public string Description { get; set; } = string.Empty;
 
-        public bool IsCompleted { get; set; }
-    }
+    public bool IsCompleted { get; set; }
 }
