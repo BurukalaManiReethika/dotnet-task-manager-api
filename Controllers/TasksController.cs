@@ -16,10 +16,69 @@ namespace dotnet_task_manager_api.Controllers
             _context = context;
         }
 
+        /// <summary>
+        /// Gets tasks using pagination.
+        /// </summary>
+        /// <param name="pageNumber">The page number to retrieve. Defaults to 1.</param>
+        /// <param name="pageSize">The number of tasks per page. Defaults to 10.</param>
+        /// <returns>A paginated list of tasks with paging metadata.</returns>
+        /// <remarks>
+        /// Example request:
+        ///
+        ///     GET /api/tasks?pageNumber=2&amp;pageSize=5
+        ///
+        /// Example response:
+        ///
+        ///     {
+        ///       "pageNumber": 2,
+        ///       "pageSize": 5,
+        ///       "totalCount": 23,
+        ///       "totalPages": 5,
+        ///       "items": [
+        ///         {
+        ///           "id": 6,
+        ///           "title": "Review pull request",
+        ///           "description": "Review the task pagination changes",
+        ///           "isCompleted": false
+        ///         }
+        ///       ]
+        ///     }
+        ///
+        /// </remarks>
+        /// <response code="200">Returns the requested page of tasks.</response>
+        /// <response code="400">Returned when pageNumber or pageSize is less than 1.</response>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
+        [ProducesResponseType(typeof(PaginatedTasksResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<PaginatedTasksResponse>> GetTasks(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10)
         {
-            return await _context.Tasks.ToListAsync();
+            if (pageNumber < 1)
+                return BadRequest("pageNumber must be greater than or equal to 1.");
+
+            if (pageSize < 1)
+                return BadRequest("pageSize must be greater than or equal to 1.");
+
+            var totalCount = await _context.Tasks.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            var offset = ((long)pageNumber - 1) * pageSize;
+            var items = offset > int.MaxValue
+                ? []
+                : await _context.Tasks
+                    .OrderBy(task => task.Id)
+                    .Skip((int)offset)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+            return new PaginatedTasksResponse
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages,
+                Items = items
+            };
         }
 
         /// <summary>
